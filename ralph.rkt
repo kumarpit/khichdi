@@ -1,6 +1,6 @@
 #lang plai
 
-(require racket/stream)
+(require "env.rkt")
 (define (... . args) (cons '... args)) ;; enables us to use ... in templates
 
 (print-only-errors #t)
@@ -14,7 +14,7 @@
 ;; INVARIANT: a RID cannot be equal to any Ralph keyword
 ;; interp. a Ralph identifier
 (define (rid? x)
-  (local [(define RESERVED '(+ - with fun if0 pair left right mt array graph dict lookup))]
+  (local [(define RESERVED '(+ - with fun if0 pair left right mt array dict lookup))]
     (and (symbol? x)
          (not (memq x RESERVED)))))
 
@@ -31,17 +31,7 @@
   [id (name rid?)] 
   [fun (param rid?) (body Ralph?)]
   [app (rator Ralph?) (arg Ralph?)]
-  [if0 (predicate Ralph?) (consequent Ralph?) (alternative Ralph?)]
-  [pair (left Ralph?) (right Ralph?)]
-  [left (e Ralph?)]
-  [right (e Ralph?)]
-  [array (e list?)]
-  [aref (e Ralph?) (n number?)]
-  [dict (e list?)]
-  [lookup (e Ralph?) (n number?)]
-  [entry (n number?) (e Ralph?)]
-  [mt]
-  [graph (nodeset Ralph?) (edgeset Ralph?)])
+  [if0 (predicate Ralph?) (consequent Ralph?) (alternative Ralph?)])
 
 ;; interp. expressions in an eager language that supports
 ;; arithmetic, functions, conditionals, and exceptions.
@@ -59,42 +49,11 @@
 ;; (FUNCTIONS)
 ;;        | {<Ralph> <Ralph>}
 ;;        | {fun {<id>} <Ralph>}
-;; (PAIRS/LISTS/DICTIONARIES)
-;;        | {pair <Ralph> <Ralph>}
-;;        | {left <Ralph>}
-;;        | {right <Ralph>}
-;;        | {array <Ralph>*}
-;;        | {aref <Ralph> <num>}
-;;        | {dict {<num> <Ralph>}*}
-;;        | {lookup <Ralph> <num>}
-;;        | {mt}
-;; (GRAPHS)
-;;        | {graph <Ralph> <Ralph>}
 ;; where
 ;; {with {x named} body} ≡ { {fun {x} body} named}
 
 ;; Syntactic Sugar
 (define (with x named body) (app (fun x body) named))
-
-
-;; 1 --> 2 --> 3
-;; adjacency list representation
-`{with {nodes {array 1 2 3}} 
-       {with {edges {dict {1 : {array 2}}
-                          {2 : {array 3}}
-                          {3 : {mt} }}
-                    {graph nodes edges}}}}
-
-;; 1 --> 2 --> 3
-;; adjacency matrix representation
-`{with {nodes {array 1 2 3}}
-       {with {nodes->index {dict {1 : 0}
-                                 {2 : 1}
-                                 {3 : 2}}}
-             {with {'mtx {array {array 0 1 0}
-                                {array 0 0 1}
-                                {array 0 0 0}}}
-                   {graph nodes edges}}}}
 
 
 #;
@@ -113,26 +72,98 @@
     [if0 (p c a)
          (... (fn-for-ralph p)
               (fn-for-ralph c)
-              (fn-for-ralph a))]
-    [pair (l r) (... (fn-for-ralph l)
-                     (fn-for-ralph r))]   
-    [left (e) (... (fn-for-ralph e))]
-    [right (e) (... (fn-for-ralph e))]
-    [array (e) (... (fn-for-loralph e))]
-    [aref (e n) (... (fn-for-ralph e)
-                     n)]
-    [mt () (...)]
-    [graph (l r) (... (fn-for-ralph l)
-                      (fn-for-ralph r))]))
-
-#;
-(define (fn-for-loralph r)
-  (cond [(empty? r) ...]
-        [else (... (fn-for-ralph (first r))
-                   (fn-for-loralph (rest r)))]))
-
+              (fn-for-ralph a))]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interpretation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;; Interpreter values
+
+(define-type Value
+  [numV (n number?)]
+  [funV (param symbol?) (body Ralph?) (env procedure?)])
+
+#;
+(define (fn-for-value v)
+  (type-case Value v
+    [numV (n) (... n)]
+    [funV (param body env) (... param
+                                (fn-for-ralph body)
+                                env)]))
+
+;; Value -> Number
+;; EFFECT: signals an error in case of a runtime error
+(define (value->num v)
+  (type-case Value v
+    [numV (n) n]
+    [funV (param body env) (error 'interp/ralph "bad number: ~a" v)]))
+
+
+;; Value -> Boolean
+(define (zero-value? v)
+  (type-case Value v
+    [numV (n) (= n 0)]
+    [funV (param body env) #f]))
+
+
+;; Value Value -> Value
+;; EFFECT: signals an error if values cannot be converted to numbers
+(define (add-value v1 v2)
+  (let ([n1 (value->num v1)]
+        [n2 (value->num v2)])
+    (numV (+ n1 n2))))
+
+
+;; Value Value -> Value
+;; EFFECT: signals an error if values cannot be converted to numbers
+(define (sub-value v1 v2)
+  (let ([n1 (value->num v1)]
+        [n2 (value->num v2)])
+    (numV (- n1 n2))))
+
+
+;; Value Value -> Value
+;; EFFECT: signals an error
+(define (apply-value v1 v2)
+  (type-case Value v1
+    [numV (n) (error 'interp/ralph "bad function: ~a" v1)]
+    [funV (x body env) (interp/ralph-env body
+                                             (extend-env env x v2))]))
+
+
+;; Ralph Env -> Value
+;; environment passing interpreter
+;; EFFECT: signals an error in case of a runtime error
+(define (interp/ralph-env r env)
+  (type-case Ralph r
+    [num (n) (numV n)]
+    [add (l r) (add-value (interp/ralph-env l env)
+                          (interp/ralph-env r env))]
+    [sub (l r) (sub-value (interp/ralph-env l env)
+                          (interp/ralph-env r env))]
+    [id (x) (lookup-env env x)]
+    [fun (x body) (funV x body env)]
+    [app (rator rand) (apply-value (interp/ralph-env rator env)
+                                   (interp/ralph-env rand env))]
+    [if0 (p c a)
+         (if  (zero-value? (interp/ralph-env p env))
+              (interp/ralph-env c env)
+              (interp/ralph-env a env))]))
+
+
+;; Ralph -> Value
+;; produce the result of interpreting the given Ralph expression
+;; EFFECT: signals an error in case of a runtime error
+(define (interp/ralph r)
+  (interp/ralph-env r empty-env))
+
+(test (interp/ralph (num 2)) (numV 2))
+(test (interp/ralph (app (fun 'x (add (id 'x) (num 3))) (num 2)))
+      (numV 5))
+(test (interp/ralph (app (fun 'x (app (fun 'y (add (id 'x) (id 'y))) (num 4))) (num 3)))
+      (numV 7))
+(test (interp/ralph (app (fun 'x (if0 (id 'x) (num 1) (add (num 2) (id 'x)))) (num 0)))
+      (numV 1))
