@@ -1,6 +1,7 @@
 #lang plai
 
-(require "env.rkt")
+(require "env.rkt")       ;; env implementation
+(require "abstract.rkt")  ;; effect abstraction implementation
 (define (... . args) (cons '... args)) ;; enables us to use ... in templates
 
 (print-only-errors #t)
@@ -87,6 +88,24 @@
 ;; Interpretation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; Effect Abstraction (i.e Monads)
+
+;; (let-env/eff ([env]) e) - bind f to the current accumulator and evalute e
+;; (with-env/eff env e)    - run e with the accumulator set to env for its dynamic
+;;                           extent
+
+;; The Generic Interface Components:
+;; (return/eff e)               - return the value of e
+;; (run/eff e env0)             - run computation e, starting with accumulator env0
+;; (let/eff ([x e1] e2))        - bind x to the value of e1 in e2, threading factor
+;; (let/eff* ([x* e1*] ...) e2) - sequentialize instances of let/eff
+
+
+;; Computation is Env -> Value
+;; interp.  a function that awaits a standard accumulator and produces a value
+
+;; End of Effect Abstraction
+
 
 ;; Interpreter values
 
@@ -131,57 +150,66 @@
     (numV (num-op n1 n2))))
 
 
-;; Value Value -> Value
+;; Value Value -> Computation
 ;; produces the sum of the two numbers represented by the given values
 ;; EFFECT: signals an error if values cannot be converted to numbers
 (define (add-value v1 v2)
-  (num-binop-value + v1 v2))
+  (return/eff (num-binop-value + v1 v2)))
 
 
-;; Value Value -> Value
+;; Value Value -> Computation
 ;; produces the difference of the two numbers represented by the given values
 ;; EFFECT: signals an error if values cannot be converted to numbers
 (define (sub-value v1 v2)
-  (num-binop-value - v1 v2))
+  (return/eff (num-binop-value - v1 v2)))
 
 
-;; Value Value -> Value
+;; Value Value -> Computation
 ;; produces the result of applying v1 to v2
 ;; EFFECT: signals an error if v1 is not a function value
 (define (apply-value v1 v2)
   (type-case Value v1
     [numV (n) (error 'interp/ralph "bad function: ~a" v1)]
-    [funV (x body env) (interp/ralph-env body
-                                             (extend-env env x v2))]))
+    [funV (x body env) (let-env/eff ([env])
+                                    (with-env/eff (extend-env env x v2)
+                                      (interp/ralph-eff body)))]))
 
 
-;; Ralph Env -> Value
-;; environment passing interpreter for Ralph
-;; EFFECT: signals an error in case of a runtime error
-(define (interp/ralph-env r env)
+;; Ralph -> Computation
+;; consumes a Ralph and produces the correspoding Value
+(define (interp/ralph-eff r)
   (type-case Ralph r
-    [num (n) (numV n)]
-    [add (l r) (add-value (interp/ralph-env l env)
-                          (interp/ralph-env r env))]
-    [sub (l r) (sub-value (interp/ralph-env l env)
-                          (interp/ralph-env r env))]
-    [id (x) (lookup-env env x)]
-    [fun (x body) (funV x body env)]
-    [app (rator rand) (apply-value (interp/ralph-env rator env)
-                                   (interp/ralph-env rand env))]
+    [num (n) (return/eff (numV n))]
+    [add (l r) (let/eff* ([v1 (interp/ralph-eff l)]
+                          [v2 (interp/ralph-eff r)])
+                         (add-value v1 v2))]
+    [sub (l r) (let/eff* ([v1 (interp/ralph-eff l)]
+                          [v2 (interp/ralph-eff r)])
+                         (sub-value v1 v2))]
+    [id (x) (let-env/eff ([env])
+                         (return/eff (lookup-env env x)))]
+    [fun (x body) (let-env/eff ([env])
+                               (return/eff (funV x body env)))]
+    [app (rator rand) (let/eff* ([v1 (interp/ralph-eff rator)]
+                                 [v2 (interp/ralph-eff rand)])
+                                (apply-value v1 v2))]
     [if0 (p c a)
-         (if  (zero-value? (interp/ralph-env p env))
-              (interp/ralph-env c env)
-              (interp/ralph-env a env))]))
+         (let/eff* ([pv (interp/ralph-eff p)]
+                    [cv (interp/ralph-eff c)]
+                    [av (interp/ralph-eff a)])
+                   (if (zero-value? pv)
+                       (return/eff cv)
+                       (return/eff av)))]))
 
 
 ;; Ralph -> Value
 ;; produce the result of interpreting the given Ralph expression
 ;; EFFECT: signals an error in case of a runtime error
 (define (interp/ralph r)
-  (interp/ralph-env r empty-env))
+  (run/eff (interp/ralph-eff r) empty-env))
 
 (test (interp/ralph (num 2)) (numV 2))
+(test (interp/ralph (add (num 2) (num 3))) (numV 5))
 (test (interp/ralph (app (fun 'x (add (id 'x) (num 3))) (num 2)))
       (numV 5))
 (test (interp/ralph (app (fun 'x (app (fun 'y (add (id 'x) (id 'y))) (num 4))) (num 3)))
