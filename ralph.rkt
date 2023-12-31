@@ -6,7 +6,15 @@
 (print-only-errors #t)
 
 ;; Ralph
-;; an language for specifying and operating on graphs
+;; a toy programming language with
+;; - Mutable variables (by-reference and by-value)
+;; - Mutable boxes
+;; - First-class (recursive) functions
+;; - Arrays, dictionaries and pairs
+;; - Backstops (more on this later)
+;; - Generalized search
+;; - Exceptions
+;; - Continuations
 
 ;; This file defines the interpreter for the Ralph language.
 
@@ -86,6 +94,8 @@
   [numV (n number?)]
   [funV (param symbol?) (body Ralph?) (env procedure?)])
 
+;; interp. Ralph runtime values
+
 #;
 (define (fn-for-value v)
   (type-case Value v
@@ -95,6 +105,7 @@
                                 env)]))
 
 ;; Value -> Number
+;; produces the number associated to the given value
 ;; EFFECT: signals an error in case of a runtime error
 (define (value->num v)
   (type-case Value v
@@ -103,30 +114,40 @@
 
 
 ;; Value -> Boolean
+;; produces true if the given value represents the number 0
 (define (zero-value? v)
   (type-case Value v
     [numV (n) (= n 0)]
     [funV (param body env) #f]))
 
 
+
+;; (Number Number -> Number) Value Value  -> Value
+;; apply num-op to the numbers represented by v1 and v2
+;; Effect: signal an error if either argument does not represent a number
+(define (num-binop-value num-op v1 v2)
+  (let ([n1 (value->num v1)]
+        [n2 (value->num v2)])
+    (numV (num-op n1 n2))))
+
+
 ;; Value Value -> Value
+;; produces the sum of the two numbers represented by the given values
 ;; EFFECT: signals an error if values cannot be converted to numbers
 (define (add-value v1 v2)
-  (let ([n1 (value->num v1)]
-        [n2 (value->num v2)])
-    (numV (+ n1 n2))))
+  (num-binop-value + v1 v2))
 
 
 ;; Value Value -> Value
+;; produces the difference of the two numbers represented by the given values
 ;; EFFECT: signals an error if values cannot be converted to numbers
 (define (sub-value v1 v2)
-  (let ([n1 (value->num v1)]
-        [n2 (value->num v2)])
-    (numV (- n1 n2))))
+  (num-binop-value - v1 v2))
 
 
 ;; Value Value -> Value
-;; EFFECT: signals an error
+;; produces the result of applying v1 to v2
+;; EFFECT: signals an error if v1 is not a function value
 (define (apply-value v1 v2)
   (type-case Value v1
     [numV (n) (error 'interp/ralph "bad function: ~a" v1)]
@@ -135,7 +156,7 @@
 
 
 ;; Ralph Env -> Value
-;; environment passing interpreter
+;; environment passing interpreter for Ralph
 ;; EFFECT: signals an error in case of a runtime error
 (define (interp/ralph-env r env)
   (type-case Ralph r
