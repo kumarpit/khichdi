@@ -1,4 +1,4 @@
-Ralph is a functional language which supports:
+Jalapeño is a functional language which supports:
 - Mutable variables (by-reference and by-value)
 - Mutable boxes
 - First-class (recursive) functions
@@ -8,4 +8,4 @@ Ralph is a functional language which supports:
 - Exceptions
 - Continuations
 
-Ralph is my attempt of putting together most of the ideas I learned in CPSC 311: Definition of Programming Languages.
+Jalapeño is my attempt of putting together most of the ideas I learned in CPSC 311: Definition of Programming Languages.
