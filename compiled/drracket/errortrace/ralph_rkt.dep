@@ -1,1 +1,0 @@
-("8.10" tarm64osx ("605638cbc1c2c7187bbf9ef729d5b3655de4d67a" . "0d99a574fab2eeb28056fcada217aa7e0583c643") #"/Users/krarpit/Developer/Projects/ralph/env.rkt" (collects #"drracket" #"private" #"drracket-errortrace-key.rkt") (collects #"plai" #"lang" #"reader.rkt") (collects #"plai" #"main.rkt") (collects #"racket" #"runtime-config.rkt"))

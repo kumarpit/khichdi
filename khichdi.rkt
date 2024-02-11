@@ -6,7 +6,7 @@
 
 (print-only-errors #t)
 
-;; Ralph
+;; Khichdi
 ;; a toy programming language with
 ;; - Mutable variables (by-reference and by-value)
 ;; - Mutable boxes
@@ -17,10 +17,10 @@
 ;; - Exceptions
 ;; - Continuations
 
-;; This file defines the interpreter for the Ralph language.
+;; This file defines the interpreter for the Khichdi language.
 
 ;; RID is Symbol
-;; INVARIANT: a RID cannot be equal to any Ralph keyword
+;; INVARIANT: a RID cannot be equal to any Khichdi keyword
 ;; interp. a Ralph identifier
 (define (rid? x)
   (local [(define RESERVED '(+ - with fun if0 pair left right mt array dict lookup))]
@@ -33,31 +33,31 @@
 ;; No template: atomic data
 
 
-(define-type Ralph
+(define-type Khichdi
   [num (n number?)]
-  [add (lhs Ralph?) (rhs Ralph?)]
-  [sub (lhs Ralph?) (rhs Ralph?)]
+  [add (lhs Khichdi?) (rhs Khichdi?)]
+  [sub (lhs Khichdi?) (rhs Khichdi?)]
   [id (name rid?)] 
-  [fun (param rid?) (body Ralph?)]
-  [app (rator Ralph?) (arg Ralph?)]
-  [if0 (predicate Ralph?) (consequent Ralph?) (alternative Ralph?)])
+  [fun (param rid?) (body Khichdi?)]
+  [app (rator Khichdi?) (arg Khichdi?)]
+  [if0 (predicate Khichdi?) (consequent Khichdi?) (alternative Khichdi?)])
 
 ;; interp. expressions in an eager language that supports
 ;; arithmetic, functions, conditionals, and exceptions.
 ;; Its syntax is defined by the following BNF:
-;; <Ralph> ::=
+;; <Khichdi> ::=
 ;; (ARITHMETIC)
 ;;          <num>
-;;        | {+ <Ralph> <Ralph>}
-;;        | {- <Ralph> <Ralph>}
+;;        | {+ <Khichdi> <Khichdi>}
+;;        | {- <Khichdi> <Khichdi>}
 ;; (IDENTIFIERS)
-;;        | {with {<id> <Ralph>} <Ralph>}
+;;        | {with {<id> <Khichdi>} <Khichdi>}
 ;;        | <id>
 ;; (CONDITIONALS)
-;;        | {if0 <Ralph> <Ralph> <Ralph>}
+;;        | {if0 <Khichdi> <Khichdi> <Khichdi>}
 ;; (FUNCTIONS)
-;;        | {<Ralph> <Ralph>}
-;;        | {fun {<id>} <Ralph>}
+;;        | {<Khichdi> <Khichdi>}
+;;        | {fun {<id>} <Khichdi>}
 ;; where
 ;; {with {x named} body} ≡ { {fun {x} body} named}
 
@@ -66,22 +66,22 @@
 
 
 #;
-(define (fn-for-ralph f)
-  (type-case Ralph f
+(define (fn-for-khichdi f)
+  (type-case Khichdi f
     [num (n) (... n)]
-    [add (l r) (... (fn-for-ralph l)
-                    (fn-for-ralph r))]
-    [sub (l r) (... (fn-for-ralph l)
-                    (fn-for-ralph r))]
+    [add (l r) (... (fn-for-khichdi l)
+                    (fn-for-khichdi r))]
+    [sub (l r) (... (fn-for-khichdi l)
+                    (fn-for-khichdi r))]
     [id (x) (... x)]
     [fun (x body) (... x
-                       (fn-for-ralph body))]
-    [app (rator rand) (... (fn-for-ralph rator)
-                           (fn-for-ralph rand))]
+                       (fn-for-khichdi body))]
+    [app (rator rand) (... (fn-for-khichdi rator)
+                           (fn-for-khichdi rand))]
     [if0 (p c a)
-         (... (fn-for-ralph p)
-              (fn-for-ralph c)
-              (fn-for-ralph a))]))
+         (... (fn-for-khichdi p)
+              (fn-for-khichdi c)
+              (fn-for-khichdi a))]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -111,9 +111,9 @@
 
 (define-type Value
   [numV (n number?)]
-  [funV (param symbol?) (body Ralph?) (env procedure?)])
+  [funV (param symbol?) (body Khichdi?) (env procedure?)])
 
-;; interp. Ralph runtime values
+;; interp. Khichdi runtime values
 
 #;
 (define (fn-for-value v)
@@ -129,7 +129,7 @@
 (define (value->num v)
   (type-case Value v
     [numV (n) n]
-    [funV (param body env) (error 'interp/ralph "bad number: ~a" v)]))
+    [funV (param body env) (error 'interp/khichdi "bad number: ~a" v)]))
 
 
 ;; Value -> Boolean
@@ -169,34 +169,34 @@
 ;; EFFECT: signals an error if v1 is not a function value
 (define (apply-value v1 v2)
   (type-case Value v1
-    [numV (n) (error 'interp/ralph "bad function: ~a" v1)]
+    [numV (n) (error 'interp/khichdi "bad function: ~a" v1)]
     [funV (x body env) (let-env/eff ([env])
                                     (with-env/eff (extend-env env x v2)
-                                      (interp/ralph-eff body)))]))
+                                      (interp/khichdi-eff body)))]))
 
 
 ;; Ralph -> Computation
 ;; consumes a Ralph and produces the correspoding Value
-(define (interp/ralph-eff r)
-  (type-case Ralph r
+(define (interp/khichdi-eff r)
+  (type-case Khichdi r
     [num (n) (return/eff (numV n))]
-    [add (l r) (let/eff* ([v1 (interp/ralph-eff l)]
-                          [v2 (interp/ralph-eff r)])
+    [add (l r) (let/eff* ([v1 (interp/khichdi-eff l)]
+                          [v2 (interp/khichdi-eff r)])
                          (add-value v1 v2))]
-    [sub (l r) (let/eff* ([v1 (interp/ralph-eff l)]
-                          [v2 (interp/ralph-eff r)])
+    [sub (l r) (let/eff* ([v1 (interp/khichdi-eff l)]
+                          [v2 (interp/khichdi-eff r)])
                          (sub-value v1 v2))]
     [id (x) (let-env/eff ([env])
                          (return/eff (lookup-env env x)))]
     [fun (x body) (let-env/eff ([env])
                                (return/eff (funV x body env)))]
-    [app (rator rand) (let/eff* ([v1 (interp/ralph-eff rator)]
-                                 [v2 (interp/ralph-eff rand)])
+    [app (rator rand) (let/eff* ([v1 (interp/khichdi-eff rator)]
+                                 [v2 (interp/khichdi-eff rand)])
                                 (apply-value v1 v2))]
     [if0 (p c a)
-         (let/eff* ([pv (interp/ralph-eff p)]
-                    [cv (interp/ralph-eff c)]
-                    [av (interp/ralph-eff a)])
+         (let/eff* ([pv (interp/khichdi-eff p)]
+                    [cv (interp/khichdi-eff c)]
+                    [av (interp/khichdi-eff a)])
                    (if (zero-value? pv)
                        (return/eff cv)
                        (return/eff av)))]))
@@ -205,14 +205,14 @@
 ;; Ralph -> Value
 ;; produce the result of interpreting the given Ralph expression
 ;; EFFECT: signals an error in case of a runtime error
-(define (interp/ralph r)
-  (run/eff (interp/ralph-eff r) empty-env))
+(define (interp/khichdi r)
+  (run/eff (interp/khichdi-eff r) empty-env))
 
-(test (interp/ralph (num 2)) (numV 2))
-(test (interp/ralph (add (num 2) (num 3))) (numV 5))
-(test (interp/ralph (app (fun 'x (add (id 'x) (num 3))) (num 2)))
+(test (interp/khichdi (num 2)) (numV 2))
+(test (interp/khichdi (add (num 2) (num 3))) (numV 5))
+(test (interp/khichdi (app (fun 'x (add (id 'x) (num 3))) (num 2)))
       (numV 5))
-(test (interp/ralph (app (fun 'x (app (fun 'y (add (id 'x) (id 'y))) (num 4))) (num 3)))
+(test (interp/khichdi (app (fun 'x (app (fun 'y (add (id 'x) (id 'y))) (num 4))) (num 3)))
       (numV 7))
-(test (interp/ralph (app (fun 'x (if0 (id 'x) (num 1) (add (num 2) (id 'x)))) (num 0)))
+(test (interp/khichdi (app (fun 'x (if0 (id 'x) (num 1) (add (num 2) (id 'x)))) (num 0)))
       (numV 1))
