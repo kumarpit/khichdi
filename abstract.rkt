@@ -1,8 +1,11 @@
 #lang plai
 
+(require "prelude.rkt") ;; Khichdi struct definitions
+
 ;; (let-env/eff ([env]) e) - bind f to the current accumulator and evalute e
 ;; (with-env/eff env e)    - run e with the accumulator set to env for its dynamic
 ;;                           extent
+;; (raise/eff t v)         - return an exception with tag t and payload v
 
 ;; The Generic Interface Components:
 ;; (return/eff e)               - return the value of e
@@ -14,8 +17,9 @@
 ;; Effect Implementation
 ;;
 
-;; Computation is Env -> Value
-;; interp.  a function that awaits a standard accumulator and produces a value
+
+;; Computation is Env -> Canonical
+;; interp.  a function that awaits a standard accumulator and produces a (canonical) value
 
 (define-syntax let-env/eff
   (syntax-rules ()
@@ -32,12 +36,20 @@
 ;; Value -> Computation
 ;; create a computation that yields n
 (define (return/eff v)
-  (λ (env) v))
+  (λ (env) (value v)))
+
+
+;; Tag Value -> Computation
+(define (raise/eff t v)
+  (λ (env) (razed t v)))
 
 ;; Computation -> Natural
 ;; run the given computation and produce its result
 (define (run/eff c env0)
-  (c env0))
+  (type-case Canonical (c env0)
+    [value (v) v]
+    [razed(tag payload) (error 'interp/khichdi "uncaught exception: ~a"
+                               (razed tag payload))]))
 
 ;; Compose two computations
 (define-syntax let/eff
@@ -45,7 +57,9 @@
     [(_ ([x c1]) c2)
      (λ (env)
        (let ([x (c1 env)])
-         (c2 env)))]))
+         (type-case Canonical x
+           [value (v) (let ([x v]) (c2 env))]
+           [razed (tag payload) (razed tag payload)])))]))
 
 ;; Compose many computations
 (define-syntax let/eff*

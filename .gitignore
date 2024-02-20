@@ -1,1 +1,5 @@
 *.rkt~
+*.dep
+*.zo
+.DS_Store
+/Compiled

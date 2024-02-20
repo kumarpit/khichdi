@@ -1,6 +1,6 @@
 #lang plai
 
-(require "khichdi.rkt")
+(require "prelude.rkt")
 (print-only-errors #t)
 
 ;; This file defines the parser for the Khichdi language.
@@ -14,8 +14,13 @@
 ;; - `{if0 ,KFS ,KFS ,KFS}
 ;; - `{,KFS ,KFS}
 ;; - `{fun {,identifer} ,KFS}
+;; - `{match/handle ,KFS
+;;      [,identifier ,KFS]
+;;      [{raze ,tag ,identifier} ,KFS]}
+;; - `{raze ,tag ,KFS}
 ;; - "any other s-expression"
 ;; where identifier is any symbol except +, -, with, if0, fun
+;; where tag is any symbol
 ;; interp. any s-expression but with a focus on those that represent Khichdi expressions
 
 ;; LOKFS is one of:
@@ -35,11 +40,11 @@
     [`{- ,sexp1 ,sexp2}
      (... (fn-for-kfs sexp1)
           (fn-for-kfs sexp2))]
-    [`{with {,x ,sexp1} ,sexp2} #:when (rid? x)
+    [`{with {,x ,sexp1} ,sexp2} #:when (kid? x)
                                 (... x
                                      (fn-for-kfs sexp1)
                                      (fn-for-kfs sexp2))]
-    [`,x #:when (rid? x) (... x)]
+    [`,x #:when (kid? x) (... x)]
     [`{if0 ,sexp1 ,sexp2 ,sexp3}
      (... (fn-for-kfs sexp1)
           (fn-for-kfs sexp2)
@@ -47,7 +52,7 @@
     [`{,sexp1 ,sexp2}
      (... (fn-for-kfs sexp1)
           (fn-for-kfs sexp2))]
-    [`{fun {,x} ,sexp} #:when (rid? x)
+    [`{fun {,x} ,sexp} #:when (kid? x)
                        (... (fn-for-kfs sexp))]
     [otherwise (...)]))
 
@@ -81,22 +86,34 @@
       [`{- ,sexp1 ,sexp2}
        (sub (parse/khichdi sexp1)
             (parse/khichdi sexp2))]
-      [`{with {,x ,sexp1} ,sexp2} #:when (rid? x)
+      [`{with {,x ,sexp1} ,sexp2} #:when (kid? x)
                                   (with x
                                         (parse/khichdi sexp1)
                                         (parse/khichdi sexp2))]
-      [`,x #:when (rid? x) (id x)]
+      [`,x #:when (kid? x) (id x)]
       [`{if0 ,sexp1 ,sexp2 ,sexp3}
        (if0 (parse/khichdi sexp1)
             (parse/khichdi sexp2)
             (parse/khichdi sexp3))]
-      [`{fun {,x} ,sexp} #:when (rid? x)
+      [`{fun {,x} ,sexp} #:when (kid? x)
                          (fun x (parse/khichdi sexp))]
+      [`{match/handle ,sexp1 [,x1 ,sexp2][{raze ,x2 ,x3} ,sexp3]}
+       #:when (and (kid? x1)
+                   (tag? x2)
+                   (kid? x3))
+       (match/handle (parse/khichdi sexp1)
+                     x1
+                     (parse/khichdi sexp2)
+                     x2
+                     x3
+                     (parse/khichdi sexp3))]
+      [`{raze ,x ,sexp} #:when (tag? x)
+                        (raze x (parse/khichdi sexp))]
       ;; function application is the last case to match
       [`{,sexp1 ,sexp2}
        ((parse/khichdi sexp1)
         (parse/khichdi sexp2))]
-      [otherwise (error 'parse/ralph "bad ralph: ~a" sexp)])))
+      [otherwise (error 'parse/ralph "bad khichdi: ~a" sexp)])))
 
 
 ;; Examples
@@ -107,3 +124,13 @@
       (app (fun 'x (app (fun 'y (add (id 'x) (id 'y))) (num 4))) (num 3)))
 (test (parse/khichdi '{with {x 0} {if0 x 1 {+ 2 x}}})
       (app (fun 'x (if0 (id 'x) (num 1) (add (num 2) (id 'x)))) (num 0)))
+(test (parse/khichdi '{raze some-tag 2}) (raze 'some-tag (num 2)))
+(test (parse/khichdi '{match/handle {raze some-tag 2}
+                                    [x {+ x 3}]
+                                    [{raze some-tag x} {+ x 4}]})
+      (match/handle (raze 'some-tag (num 2))
+                    'x
+                    (add (id 'x) (num 3))
+                    'some-tag
+                    'x
+                    (add (id 'x) (num 4))))

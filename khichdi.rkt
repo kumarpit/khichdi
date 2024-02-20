@@ -1,127 +1,15 @@
 #lang plai
 
+(require "prelude.rkt")   ;; Khichdi struct definitions
 (require "env.rkt")       ;; env implementation
-(require "abstract.rkt")  ;; effect abstraction implementation
-(define (... . args) (cons '... args)) ;; enables us to use ... in templates
+(require "abstract.rkt")  ;; effect abstraction interface
 
 (print-only-errors #t)
-
-;; Khichdi
-;; a toy programming language with
-;; - Mutable variables (by-reference and by-value)
-;; - Mutable boxes
-;; - First-class (recursive) functions
-;; - Arrays, dictionaries and pairs
-;; - Backstops (more on this later)
-;; - Generalized search
-;; - Exceptions
-;; - Continuations
-
-;; This file defines the interpreter for the Khichdi language.
-
-;; RID is Symbol
-;; INVARIANT: a RID cannot be equal to any Khichdi keyword
-;; interp. a Ralph identifier
-(define (rid? x)
-  (local [(define RESERVED '(+ - with fun if0 pair left right mt array dict lookup))]
-    (and (symbol? x)
-         (not (memq x RESERVED)))))
-
-(define RID0 'a)
-(define RID1 'b)
-
-;; No template: atomic data
-
-
-(define-type Khichdi
-  [num (n number?)]
-  [add (lhs Khichdi?) (rhs Khichdi?)]
-  [sub (lhs Khichdi?) (rhs Khichdi?)]
-  [id (name rid?)] 
-  [fun (param rid?) (body Khichdi?)]
-  [app (rator Khichdi?) (arg Khichdi?)]
-  [if0 (predicate Khichdi?) (consequent Khichdi?) (alternative Khichdi?)])
-
-;; interp. expressions in an eager language that supports
-;; arithmetic, functions, conditionals, and exceptions.
-;; Its syntax is defined by the following BNF:
-;; <Khichdi> ::=
-;; (ARITHMETIC)
-;;          <num>
-;;        | {+ <Khichdi> <Khichdi>}
-;;        | {- <Khichdi> <Khichdi>}
-;; (IDENTIFIERS)
-;;        | {with {<id> <Khichdi>} <Khichdi>}
-;;        | <id>
-;; (CONDITIONALS)
-;;        | {if0 <Khichdi> <Khichdi> <Khichdi>}
-;; (FUNCTIONS)
-;;        | {<Khichdi> <Khichdi>}
-;;        | {fun {<id>} <Khichdi>}
-;; where
-;; {with {x named} body} ≡ { {fun {x} body} named}
-
-;; Syntactic Sugar
-(define (with x named body) (app (fun x body) named))
-
-
-#;
-(define (fn-for-khichdi f)
-  (type-case Khichdi f
-    [num (n) (... n)]
-    [add (l r) (... (fn-for-khichdi l)
-                    (fn-for-khichdi r))]
-    [sub (l r) (... (fn-for-khichdi l)
-                    (fn-for-khichdi r))]
-    [id (x) (... x)]
-    [fun (x body) (... x
-                       (fn-for-khichdi body))]
-    [app (rator rand) (... (fn-for-khichdi rator)
-                           (fn-for-khichdi rand))]
-    [if0 (p c a)
-         (... (fn-for-khichdi p)
-              (fn-for-khichdi c)
-              (fn-for-khichdi a))]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interpretation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; Effect Abstraction (i.e Monads)
-
-;; (let-env/eff ([env]) e) - bind f to the current accumulator and evalute e
-;; (with-env/eff env e)    - run e with the accumulator set to env for its dynamic
-;;                           extent
-
-;; The Generic Interface Components:
-;; (return/eff e)               - return the value of e
-;; (run/eff e env0)             - run computation e, starting with accumulator env0
-;; (let/eff ([x e1] e2))        - bind x to the value of e1 in e2, threading factor
-;; (let/eff* ([x* e1*] ...) e2) - sequentialize instances of let/eff
-
-
-;; Computation is Env -> Value
-;; interp.  a function that awaits a standard accumulator and produces a value
-
-;; End of Effect Abstraction
-
-
-;; Interpreter values
-
-(define-type Value
-  [numV (n number?)]
-  [funV (param symbol?) (body Khichdi?) (env procedure?)])
-
-;; interp. Khichdi runtime values
-
-#;
-(define (fn-for-value v)
-  (type-case Value v
-    [numV (n) (... n)]
-    [funV (param body env) (... param
-                                (fn-for-ralph body)
-                                env)]))
 
 ;; Value -> Number
 ;; produces the number associated to the given value
@@ -175,8 +63,34 @@
                                       (interp/khichdi-eff body)))]))
 
 
-;; Ralph -> Computation
-;; consumes a Ralph and produces the correspoding Value
+;; Computation KID Khichdi Tag KID Khichdi -> Computation
+;; interpret the given match/handle operation
+;; Effect: signal an error in case of runtime error
+(define-syntax interp/match-handle
+  (syntax-rules ()
+    [(_ cexpr val-id val-body etag eid ebody)
+     (let-env/eff ([env])
+                  (type-case Canonical (cexpr env)
+                    [value (v) 
+                           (with-env/eff (extend-env env val-id v)
+                             (interp/khichdi-eff val-body))]
+                    [razed (tag payload) (if (symbol=? tag etag)
+                                             (with-env/eff (extend-env env eid payload)
+                                               (interp/khichdi-eff ebody))
+                                             (raise/eff tag payload))]))]))
+
+
+;; Tag Computation  -> Computation
+;; interpret the given raze operation
+(define-syntax interp/raze
+  (syntax-rules ()
+    [(_ tag cexpr)
+     (let/eff ([v cexpr])
+              (raise/eff tag v))]))
+
+
+;; Khichdi -> Computation
+;; consumes a Khichdi and produces the correspoding Value
 (define (interp/khichdi-eff r)
   (type-case Khichdi r
     [num (n) (return/eff (numV n))]
@@ -199,11 +113,19 @@
                     [av (interp/khichdi-eff a)])
                    (if (zero-value? pv)
                        (return/eff cv)
-                       (return/eff av)))]))
+                       (return/eff av)))]
+    [match/handle (expr vid vbody etag eid ebody)
+                  (interp/match-handle (interp/khichdi-eff expr)
+                                       vid
+                                       vbody
+                                       etag
+                                       eid
+                                       ebody)]
+    [raze (tag expr) (interp/raze tag (interp/khichdi-eff expr))]))
 
 
-;; Ralph -> Value
-;; produce the result of interpreting the given Ralph expression
+;; Khichdi -> Value
+;; produce the result of interpreting the given Khichdi expression
 ;; EFFECT: signals an error in case of a runtime error
 (define (interp/khichdi r)
   (run/eff (interp/khichdi-eff r) empty-env))
@@ -216,3 +138,11 @@
       (numV 7))
 (test (interp/khichdi (app (fun 'x (if0 (id 'x) (num 1) (add (num 2) (id 'x)))) (num 0)))
       (numV 1))
+(test/exn (interp/khichdi (raze 'some-tag (num 2))) "uncaught exception:")
+(test (interp/khichdi (match/handle (raze 'some-tag (num 2))
+                                    'x
+                                    (add (id 'x) (num 3))
+                                    'some-tag
+                                    'x
+                                    (add (id 'x) (num 4))))
+      (numV 6))
