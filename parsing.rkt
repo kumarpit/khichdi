@@ -14,6 +14,9 @@
 ;; - `{if0 ,KFS ,KFS ,KFS}
 ;; - `{,KFS ,KFS}
 ;; - `{fun {,identifer} ,KFS}
+;; - `{fix ,identifier ,KFS}
+;; - `{fixFun ,identifier ,identifier ,KFS}
+;; - `{rec {,identifier, ,KFS} ,KFS}
 ;; - `{match/handle ,KFS
 ;;      [,identifier ,KFS]
 ;;      [{raze ,tag ,identifier} ,KFS]}
@@ -97,6 +100,13 @@
             (parse/khichdi sexp3))]
       [`{fun {,x} ,sexp} #:when (kid? x)
                          (fun x (parse/khichdi sexp))]
+      [`{fix ,x ,sexp} #:when (kid? x) (fix x (parse/khichdi sexp))]
+      [`{fixFun ,f {,x} ,sexp} #:when (and (kid? f)
+                                           (kid? x))
+                               (fixFun f x (parse/khichdi sexp))]
+      [`{rec {,x ,sexp1} ,sexp2} #:when (kid? x) (rec x
+                                                   (parse/khichdi sexp1)
+                                                   (parse/khichdi sexp2))]                                                   
       [`{match/handle ,sexp1 [,x1 ,sexp2][{raze ,x2 ,x3} ,sexp3]}
        #:when (and (kid? x1)
                    (tag? x2)
@@ -111,19 +121,34 @@
                         (raze x (parse/khichdi sexp))]
       ;; function application is the last case to match
       [`{,sexp1 ,sexp2}
-       ((parse/khichdi sexp1)
-        (parse/khichdi sexp2))]
+       (app (parse/khichdi sexp1)
+            (parse/khichdi sexp2))]
       [otherwise (error 'parse/ralph "bad khichdi: ~a" sexp)])))
 
 
 ;; Examples
 (test (parse/khichdi 2) (num 2))
+(test (parse/khichdi `{f 2}) (app (id 'f) (num 2)))
 (test (parse/khichdi '{+ 1 2}) (add (num 1) (num 2)))
 (test (parse/khichdi '{with {x 2} {+ x 3}}) (app (fun 'x (add (id 'x) (num 3))) (num 2)))
 (test (parse/khichdi '{with {x 3} {with {y 4} {+ x y}}})
       (app (fun 'x (app (fun 'y (add (id 'x) (id 'y))) (num 4))) (num 3)))
 (test (parse/khichdi '{with {x 0} {if0 x 1 {+ 2 x}}})
       (app (fun 'x (if0 (id 'x) (num 1) (add (num 2) (id 'x)))) (num 0)))
+
+(test (parse/khichdi '{fix f f}) (fix 'f (id 'f)))
+(test (parse/khichdi '{fixFun f {x} {f 1}}) (fix 'f (fun 'x (app (id 'f) (num 1)))))
+(test (parse/khichdi '{with {down {fix f {fun {x} {if0 x 9 {f {- x 1}}}}}} {down 1}})
+      (app (fun 'down (app (id 'down) (num 1)))
+           (fix 'f
+                (fun 'x
+                     (if0 (id 'x)
+                          (num 9)
+                          (app (id 'f) (sub (id 'x) (num 1))))))))
+(test (parse/khichdi '{rec {x {x 2}} {x 1}}) (app
+                                              (fun 'x (app (id 'x) (num 1)))
+                                              (fix 'x (app (id 'x) (num 2)))))
+
 (test (parse/khichdi '{raze some-tag 2}) (raze 'some-tag (num 2)))
 (test (parse/khichdi '{match/handle {raze some-tag 2}
                                     [x {+ x 3}]

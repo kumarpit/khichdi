@@ -56,10 +56,9 @@
   (syntax-rules ()
     [(_ ([x c1]) c2)
      (λ (env)
-       (let ([x (c1 env)])
-         (type-case Canonical x
-           [value (v) (let ([x v]) (c2 env))]
-           [razed (tag payload) (razed tag payload)])))]))
+       (type-case Canonical (c1 env)
+         [value (v) (let ([x v]) (c2 env))]
+         [razed (tag payload) (razed tag payload)]))]))
 
 ;; Compose many computations
 (define-syntax let/eff*

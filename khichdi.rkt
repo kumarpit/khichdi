@@ -63,6 +63,12 @@
                                       (interp/khichdi-eff body)))]))
 
 
+;; KID Khichdi -> Computation
+;; interpret the given fix expression
+(define (interp-fix x body)
+  (interp/khichdi-eff (subst body x (fix x body))))
+
+
 ;; Computation KID Khichdi Tag KID Khichdi -> Computation
 ;; interpret the given match/handle operation
 ;; Effect: signal an error in case of runtime error
@@ -106,14 +112,13 @@
                                (return/eff (funV x body env)))]
     [app (rator rand) (let/eff* ([v1 (interp/khichdi-eff rator)]
                                  [v2 (interp/khichdi-eff rand)])
-                                (apply-value v1 v2))]
+                                (apply-value v1 v2))] 
     [if0 (p c a)
-         (let/eff* ([pv (interp/khichdi-eff p)]
-                    [cv (interp/khichdi-eff c)]
-                    [av (interp/khichdi-eff a)])
-                   (if (zero-value? pv)
-                       (return/eff cv)
-                       (return/eff av)))]
+         (let/eff ([pv (interp/khichdi-eff p)])
+                  (if (zero-value? pv)
+                      (interp/khichdi-eff c)
+                      (interp/khichdi-eff a)))]
+    [fix (x body) (interp-fix x body)]
     [match/handle (expr vid vbody etag eid ebody)
                   (interp/match-handle (interp/khichdi-eff expr)
                                        vid
@@ -138,6 +143,20 @@
       (numV 7))
 (test (interp/khichdi (app (fun 'x (if0 (id 'x) (num 1) (add (num 2) (id 'x)))) (num 0)))
       (numV 1))
+(test (interp/khichdi (app (fun 'f (app (id 'f) (num 1)))
+                           (fun 'x (add (id 'x) (num 1)))))
+      (numV 2))
+(test (interp/khichdi (app (fun 'f (app (id 'f) (num 1)))
+                           (fun 'x (if0 (id 'x)
+                                        (num 9)
+                                        (add (id 'x) (num 2))))))
+      (numV 3))
+;; should diverge
+;; (test (interp/khichdi (fix 'f (id 'f))) (numV 0))
+(test (interp/khichdi (app (fun 'down (app (id 'down) (num 1)))
+                           (fix 'f (fun 'x (if0 (id 'x)
+                                                (num 9)
+                                                (app (id 'f) (sub (id 'x) (num 1)))))))) (numV 9))
 (test/exn (interp/khichdi (raze 'some-tag (num 2))) "uncaught exception:")
 (test (interp/khichdi (match/handle (raze 'some-tag (num 2))
                                     'x
