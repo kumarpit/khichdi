@@ -82,15 +82,20 @@
   (syntax-rules ()
     [(_ cexpr val-id val-body etag eid ebody)
      (let-env/eff ([env])
-                  (match-let ([`(,val ,store) (cexpr env empty-store)])
-                    (type-case Canonical val
-                      [value (v) 
-                             (with-env/eff (extend-env env val-id v)
-                               (interp/khichdi-eff val-body))]
-                      [razed (tag payload) (if (symbol=? tag etag)
-                                               (with-env/eff (extend-env env eid payload)
-                                                 (interp/khichdi-eff ebody))
-                                               (raise/eff tag payload))])))]))
+                  (let-state/eff ([store])
+                                 (match-let ([`(,val ,store) (cexpr env store)])
+                                   (let ([l (gensym)])
+                                     (type-case Canonical val
+                                       [value (v)
+                                              (with-env/eff (extend-env env val-id l)
+                                                (let/eff ([_ (update-state/eff (update-store store l v))])
+                                                         (interp/khichdi-eff val-body)))]
+                                       [razed (tag payload) (if (symbol=? tag etag)
+                                                                (with-env/eff (extend-env env eid l)
+                                                                  (let/eff ([_ (update-state/eff
+                                                                                (update-store store l payload))])
+                                                                           (interp/khichdi-eff ebody)))
+                                                                (raise/eff tag payload))])))))]))
 
 
 ;; Tag Computation  -> Computation
@@ -235,3 +240,7 @@
 (test (interp/khichdi (with 'x (newbox (num 3)) (seqn (setbox (id 'x) (num 4))
                                                       (add (num 1) (openbox (id 'x))))))
       (numV 5))
+
+(test (interp/khichdi (with 'x (num 2) (seqn (setvar 'x (num 3))
+                                             (add (id 'x) (num 1)))))
+      (numV 4))
