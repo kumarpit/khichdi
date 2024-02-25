@@ -54,9 +54,9 @@
   [if0 (predicate Khichdi?) (consequent Khichdi?) (alternative Khichdi?)]
   [fix (name kid?) (body Khichdi?)]
   [newbox (e Khichdi?)]
-  ;;;;;;;;;;;;;;;;;;;;; only created by interp
   [setbox (e1 Khichdi?) (e2 Khichdi?)]
   [openbox (e Khichdi?)]
+  [setvar (id kid?) (e Khichdi?)]
   [raze (tag tag?) (expr Khichdi?)]
   [match/handle (expr Khichdi?)
                 (value-id kid?) (value-body Khichdi?)
@@ -170,6 +170,7 @@
               [newbox (e) (newbox e)]
               [setbox (e1 e2) (setbox e1 e2)]
               [openbox (e) (openbox e)]
+              [setvar (x e) (setvar x (maybe-subst-in e x))]
               [match/handle (expr vid vbody etag eid ebody)
                             (match/handle (recur expr)
                                           vid

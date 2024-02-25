@@ -125,6 +125,7 @@
                                        (parse/khichdi sexp2))]
       [`{seqn ,sexp1 ,sexp2} (seqn (parse/khichdi sexp1)
                                    (parse/khichdi sexp2))]
+      [`{setvar ,x ,e} (setvar x (parse/khichdi e))]
       ;; function application is the last case to match
       [`{,sexp1 ,sexp2}
        (app (parse/khichdi sexp1)
@@ -174,3 +175,7 @@
       (app (fun 'x (app (fun 'g1805382 (add (openbox (id 'x)) (num 1)))
                         (setbox (id 'x) (num 3))))
            (newbox (num 2))))
+#;
+(test (parse/khichdi '{with {x 2} {seqn {setvar x 3}
+                                        {+ x 1}}})
+      (app (fun 'x (app (fun 'g2627105 (add (id 'x) (num 1))) (setvar 'x (num 3)))) (num 2)))

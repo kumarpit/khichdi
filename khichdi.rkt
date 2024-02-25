@@ -59,9 +59,13 @@
 (define (apply-value v1 v2)
   (type-case Value v1
     [numV (n) (error 'interp/khichdi "bad function: ~a" v1)]
-    [funV (x body env) (let-env/eff ([env])
-                                    (with-env/eff (extend-env env x v2)
-                                      (interp/khichdi-eff body)))]
+    [funV (x body env) (let ([l (gensym)])
+                         (let-env/eff ([env])
+                                      (let-state/eff ([store])
+                                                     (with-env/eff (extend-env env x l)
+                                                       (let/eff ([_ (update-state/eff
+                                                                     (update-store store l v2))])
+                                                                (interp/khichdi-eff body))))))]
     [boxV (l) (error 'interp/khichdi "bad function: ~a" v1)]))
 
 
@@ -129,6 +133,13 @@
     (let-state/eff ([store])
                    (return/eff (lookup-store store loc)))))
 
+;; assign variable x to the value v
+(define (setvar-value x v env store)
+  (let* ([l (lookup-env env x)]
+         [v-old (lookup-store store l)])    
+    (list v-old 
+          (update-store store l v))))
+
 
 ;; Khichdi -> Computation
 ;; consumes a Khichdi and produces the correspoding Value
@@ -142,7 +153,9 @@
                           [v2 (interp/khichdi-eff r)])
                          (sub-value v1 v2))]
     [id (x) (let-env/eff ([env])
-                         (return/eff (lookup-env env x)))]
+                         (let-state/eff ([store])
+                                        (return/eff (lookup-store store
+                                                                  (lookup-env env x)))))]
     [fun (x body) (let-env/eff ([env])
                                (return/eff (funV x body env)))]
     [app (rator rand) (let/eff* ([v1 (interp/khichdi-eff rator)]
@@ -168,7 +181,16 @@
                                [v2 (interp/khichdi-eff e2)])
                               (setbox-value v1 v2))]
     [openbox (e) (let/eff ([v (interp/khichdi-eff e)])
-                          (openbox-value v))]))
+                          (openbox-value v))]
+    [setvar (x e) (let-env/eff ([env])
+                               (let-state/eff ([store])
+                                              (let/eff* ([v (interp/khichdi-eff e)]
+                                                         [_ (update-state/eff
+                                                             (update-store store
+                                                                           (lookup-env env x)
+                                                                           v))])
+                                                        (return/eff (numV -99)))))]))
+                                                  
 
 
 ;; Khichdi -> Value

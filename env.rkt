@@ -1,7 +1,7 @@
 #lang plai
 (require "prelude.rkt")
 
-;; Env is Symbol -> Value
+;; Env is Symbol -> Location
 ;; interp.  bindings of identifiers to objects of type X
 
 ;; empty-env : Env
