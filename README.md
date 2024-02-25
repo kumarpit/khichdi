@@ -5,7 +5,7 @@ Khichdi is a functional language which supports:
 - Mutable boxes
 - First-class (recursive) functions
 - Arrays, dictionaries and pairs
-- Backstops (more on this later)
+- Backstops (akin to [Scala Implicits](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&ved=2ahUKEwi1m4KSzMeEAxVXIjQIHcvFDZUQFnoECAcQAQ&url=https%3A%2F%2Fdocs.scala-lang.org%2Ftour%2Fimplicit-parameters.html&usg=AOvVaw0YCR6w7GTXGLMYnGvj6ZZ-&opi=89978449))
 - Generalized search
 - Exceptions
 - Continuations
