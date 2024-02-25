@@ -119,6 +119,12 @@
                      (parse/khichdi sexp3))]
       [`{raze ,x ,sexp} #:when (tag? x)
                         (raze x (parse/khichdi sexp))]
+      [`{openbox ,sexp} (openbox (parse/khichdi sexp))]
+      [`{newbox ,sexp} (newbox (parse/khichdi sexp))]
+      [`{setbox ,sexp1 ,sexp2} (setbox (parse/khichdi sexp1)
+                                       (parse/khichdi sexp2))]
+      [`{seqn ,sexp1 ,sexp2} (seqn (parse/khichdi sexp1)
+                                   (parse/khichdi sexp2))]
       ;; function application is the last case to match
       [`{,sexp1 ,sexp2}
        (app (parse/khichdi sexp1)
@@ -159,3 +165,12 @@
                     'some-tag
                     'x
                     (add (id 'x) (num 4))))
+
+(test (parse/khichdi '{newbox 2}) (newbox (num 2)))
+#; 
+(test (parse/khichdi '{with {x {newbox 2}}
+                            {seqn {setbox x 3}
+                                  {+ {openbox x} 1}}})
+      (app (fun 'x (app (fun 'g1805382 (add (openbox (id 'x)) (num 1)))
+                        (setbox (id 'x) (num 3))))
+           (newbox (num 2))))

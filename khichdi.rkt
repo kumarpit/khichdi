@@ -76,14 +76,15 @@
   (syntax-rules ()
     [(_ cexpr val-id val-body etag eid ebody)
      (let-env/eff ([env])
-                  (type-case Canonical (cexpr env)
-                    [value (v) 
-                           (with-env/eff (extend-env env val-id v)
-                             (interp/khichdi-eff val-body))]
-                    [razed (tag payload) (if (symbol=? tag etag)
-                                             (with-env/eff (extend-env env eid payload)
-                                               (interp/khichdi-eff ebody))
-                                             (raise/eff tag payload))]))]))
+                  (match-let ([`(,val ,store) (cexpr env empty-store)])
+                    (type-case Canonical val
+                      [value (v) 
+                             (with-env/eff (extend-env env val-id v)
+                               (interp/khichdi-eff val-body))]
+                      [razed (tag payload) (if (symbol=? tag etag)
+                                               (with-env/eff (extend-env env eid payload)
+                                                 (interp/khichdi-eff ebody))
+                                               (raise/eff tag payload))])))]))
 
 
 ;; Tag Computation  -> Computation
@@ -126,14 +127,24 @@
                                        etag
                                        eid
                                        ebody)]
-    [raze (tag expr) (interp/raze tag (interp/khichdi-eff expr))]))
+    [raze (tag expr) (interp/raze tag (interp/khichdi-eff expr))]
+    [newbox (e) #;
+            (... (interp/khichdi-eff e))
+            (return/eff (numV 0))]
+    [setbox (e1 e2) #;
+            (... (interp/khichdi-eff e1)
+                 (interp/khichdi-eff e2))
+            (return/eff (numV 0))]
+    [openbox (e) #;
+             (... (interp/khichdi-eff e))
+             (return/eff (numV 0))]))
 
 
 ;; Khichdi -> Value
 ;; produce the result of interpreting the given Khichdi expression
 ;; EFFECT: signals an error in case of a runtime error
 (define (interp/khichdi r)
-  (run/eff (interp/khichdi-eff r) empty-env))
+  (run/eff (interp/khichdi-eff r) empty-env empty-store))
 
 (test (interp/khichdi (num 2)) (numV 2))
 (test (interp/khichdi (add (num 2) (num 3))) (numV 5))

@@ -37,6 +37,11 @@
 (define tag0 'a)
 (define tag1 'out-of-bounds-exception)
 
+
+;; Location is symbol
+;; interp. an address in a store.
+(define location? symbol?)
+
 ;; No template: atomic data
 
 (define-type Khichdi
@@ -48,6 +53,10 @@
   [app (rator Khichdi?) (arg Khichdi?)]
   [if0 (predicate Khichdi?) (consequent Khichdi?) (alternative Khichdi?)]
   [fix (name kid?) (body Khichdi?)]
+  [newbox (e Khichdi?)]
+  ;;;;;;;;;;;;;;;;;;;;; only created by interp
+  [setbox (e1 Khichdi?) (e2 Khichdi?)]
+  [openbox (e Khichdi?)]
   [raze (tag tag?) (expr Khichdi?)]
   [match/handle (expr Khichdi?)
                 (value-id kid?) (value-body Khichdi?)
@@ -73,6 +82,12 @@
 ;;        | {fix <id> <Khichdi>}
 ;;        | {fixFun <id> <id> <Khichdi>}
 ;;        | {rec {<id> <Khichdi>} <Khichdi>}
+;; (BOXES)
+;;        | {newbox <Khichdi>}
+;;        | {setbox <Khichdi> <Khichdi>}
+;;        | {openbox <Khichdi>}
+;; (SEQUENCING)
+;;        | {seqn <Khichdi> <Khichdi>}
 ;; (EXCEPTIONS)
 ;;        | {match/handle <Khichdi>
 ;;           [<id> <Khichdi>]
@@ -84,12 +99,10 @@
 
 ;; Syntactic Sugar
 (define (with x named body) (app (fun x body) named))
-
 (define (fixFun f x body) (fix f (fun x body)))
-
 (define (rec name named-expr body)
   (with name (fix name named-expr) body))
-
+(define (seqn e1 e2) (with (gensym) e1 e2))
 
 #;
 (define (fn-for-khichdi f)
@@ -110,6 +123,11 @@
               (fn-for-khichdi a))]
     [fix (x body) (... x
                        (fn-for-khichdi body))]
+    [newbox (e) (... (fn-for-khichdi e))]
+    [setbox (e1 e2) (... (fn-for-khichdi e1)
+                         (fn-for-khichdi e2))]
+    [openbox (e) (... (fn-for-khichdi e))]
+    [boxV (e) (fn-for-khichdi e)]
     [match/handle (expr vid vbody etag eid ebody)
                   (... (fn-for-khichdi expr)
                        vid
@@ -149,6 +167,9 @@
                         (recur c)
                         (recur a))]
               [fix (x body) (fix x (maybe-subst-in body x))]
+              [newbox (e) (newbox e)]
+              [setbox (e1 e2) (setbox e1 e2)]
+              [openbox (e) (openbox e)]
               [match/handle (expr vid vbody etag eid ebody)
                             (match/handle (recur expr)
                                           vid
@@ -161,13 +182,12 @@
     (recur khichdi)))
 
 
-  ;; Interpreter values
-  (define-type Value
-    [numV (n number?)]
-    [funV (param symbol?) (body Khichdi?) (env procedure?)])
+;; Interpreter values
+(define-type Value
+  [numV (n number?)]
+  [funV (param symbol?) (body Khichdi?) (env procedure?)])
 
-  ;; Khichdi canonical values
-  (define-type Canonical
-    [value (v Value?)]
-    [razed (tag tag?) (payload Value?)])
-  
+;; Khichdi canonical values
+(define-type Canonical
+  [value (v Value?)]
+  [razed (tag tag?) (payload Value?)])
