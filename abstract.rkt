@@ -71,10 +71,10 @@
 (define-syntax let/eff
   (syntax-rules ()
     [(_ ([x c1]) c2)
-     (λ (env state)
-       (match-let ([`(,val ,state) (c1 env state)])
+     (λ (env state0)
+       (match-let ([`(,val ,state) (c1 env state0)])
          (type-case Canonical val
-           [value (v) (let ([x v]) (c2 env state))]
+           [value (v) (let ([x v]) (c2 env state))]  ;; pass in new state after running c1
            [razed (tag payload) (list (razed tag payload) state)])))]))
 
 ;; Compose many computations

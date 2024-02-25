@@ -185,7 +185,8 @@
 ;; Interpreter values
 (define-type Value
   [numV (n number?)]
-  [funV (param symbol?) (body Khichdi?) (env procedure?)])
+  [funV (param symbol?) (body Khichdi?) (env procedure?)]
+  [boxV (l location?)])
 
 ;; Khichdi canonical values
 (define-type Canonical

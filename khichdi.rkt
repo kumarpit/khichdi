@@ -17,7 +17,8 @@
 (define (value->num v)
   (type-case Value v
     [numV (n) n]
-    [funV (param body env) (error 'interp/khichdi "bad number: ~a" v)]))
+    [funV (param body env) (error 'interp/khichdi "bad number: ~a" v)]
+    [boxV (l) (error 'interp/khichdi "bad number: ~a" l)]))
 
 
 ;; Value -> Boolean
@@ -25,8 +26,8 @@
 (define (zero-value? v)
   (type-case Value v
     [numV (n) (= n 0)]
-    [funV (param body env) #f]))
-
+    [funV (param body env) #f]
+    [boxV (l) #f]))
 
 
 ;; (Number Number -> Number) Value Value  -> Value
@@ -60,7 +61,8 @@
     [numV (n) (error 'interp/khichdi "bad function: ~a" v1)]
     [funV (x body env) (let-env/eff ([env])
                                     (with-env/eff (extend-env env x v2)
-                                      (interp/khichdi-eff body)))]))
+                                      (interp/khichdi-eff body)))]
+    [boxV (l) (error 'interp/khichdi "bad function: ~a" v1)]))
 
 
 ;; KID Khichdi -> Computation
@@ -95,6 +97,38 @@
      (let/eff ([v cexpr])
               (raise/eff tag v))]))
 
+;; Value -> (boxV _)
+;; coerce the given value to a box location
+;; Effect: signal an error if v does not denote a box location
+(define (value->loc v)
+  (match v
+    [(boxV l) l]
+    [else (error 'interp "Bad box location: ~a" v)]))
+
+;; Value -> Computation
+;; interpret the given newbox expression
+(define (newbox-value v)
+  (let ([loc (gensym)])
+    (let-state/eff ([store])
+                   (let/eff ([_ (update-state/eff (update-store store loc v))])
+                            (return/eff (boxV loc))))))
+
+;; Value Value -> Computation
+;; interpret the given setbox expression
+(define (setbox-value v1 v2)
+  (let ([loc (value->loc v1)])
+    (let-state/eff ([store])
+                   (let/eff ([_ (update-state/eff (update-store store loc v2))])
+                            (return/eff (boxV loc))))))
+
+;; Value -> Computation
+;; get back the value stored in the given box
+;; EFFECTS: throws an error if not a box value
+(define (openbox-value v)
+  (let ([loc (value->loc v)])
+    (let-state/eff ([store])
+                   (return/eff (lookup-store store loc)))))
+
 
 ;; Khichdi -> Computation
 ;; consumes a Khichdi and produces the correspoding Value
@@ -128,16 +162,13 @@
                                        eid
                                        ebody)]
     [raze (tag expr) (interp/raze tag (interp/khichdi-eff expr))]
-    [newbox (e) #;
-            (... (interp/khichdi-eff e))
-            (return/eff (numV 0))]
-    [setbox (e1 e2) #;
-            (... (interp/khichdi-eff e1)
-                 (interp/khichdi-eff e2))
-            (return/eff (numV 0))]
-    [openbox (e) #;
-             (... (interp/khichdi-eff e))
-             (return/eff (numV 0))]))
+    [newbox (e) (let/eff ([v (interp/khichdi-eff e)])
+                         (newbox-value v))]
+    [setbox (e1 e2) (let/eff* ([v1 (interp/khichdi-eff e1)]
+                               [v2 (interp/khichdi-eff e2)])
+                              (setbox-value v1 v2))]
+    [openbox (e) (let/eff ([v (interp/khichdi-eff e)])
+                          (openbox-value v))]))
 
 
 ;; Khichdi -> Value
@@ -176,3 +207,9 @@
                                     'x
                                     (add (id 'x) (num 4))))
       (numV 6))
+
+;; (test (interp/khichdi (newbox (num 2))) (boxV 'g2405468))
+(test (interp/khichdi (with 'x (newbox (num 2)) (add (num 1) (openbox (id 'x))))) (numV 3))
+(test (interp/khichdi (with 'x (newbox (num 3)) (seqn (setbox (id 'x) (num 4))
+                                                      (add (num 1) (openbox (id 'x))))))
+      (numV 5))
