@@ -11,3 +11,6 @@ Khichdi is a functional language which supports:
 - Continuations
 
 This is my attempt of putting together most of the ideas I learned in CPSC 311: Definition of Programming Languages (hence the name). You can read more about the development of this project at my [blog](https://kumarpit.github.io/posts/khichdi/).
+
+Todo
+- https://williamjbowman.com/tmp/how-to-hashlang/
