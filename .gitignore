@@ -3,3 +3,4 @@
 *.zo
 .DS_Store
 /Compiled
+compiled/drracket/errortrace

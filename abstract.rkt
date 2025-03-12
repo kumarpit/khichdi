@@ -1,6 +1,7 @@
-#lang plai
+#lang racket
 
 (require "prelude.rkt") ;; Khichdi struct definitions
+(provide (all-defined-out))
 
 ;; (let-env/eff ([env]) e) - bind f to the current accumulator and evalute e
 ;; (with-env/eff env e)    - run e with the accumulator set to env for its dynamic

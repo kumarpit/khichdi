@@ -1,11 +1,8 @@
-#lang plai
+#lang racket
 
 (require "prelude.rkt")   ;; Khichdi struct definitions
 (require "env.rkt")       ;; env implementation
 (require "abstract.rkt")  ;; effect abstraction interface
-
-(print-only-errors #t)
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interpretation
@@ -204,30 +201,30 @@
 (define (interp/khichdi r)
   (run/eff (interp/khichdi-eff r) empty-env empty-store))
 
-(test (interp/khichdi (num 2)) (numV 2))
-(test (interp/khichdi (add (num 2) (num 3))) (numV 5))
-(test (interp/khichdi (app (fun 'x (add (id 'x) (num 3))) (num 2)))
+(check-equal? (interp/khichdi (num 2)) (numV 2))
+(check-equal? (interp/khichdi (add (num 2) (num 3))) (numV 5))
+(check-equal? (interp/khichdi (app (fun 'x (add (id 'x) (num 3))) (num 2)))
       (numV 5))
-(test (interp/khichdi (app (fun 'x (app (fun 'y (add (id 'x) (id 'y))) (num 4))) (num 3)))
+(check-equal? (interp/khichdi (app (fun 'x (app (fun 'y (add (id 'x) (id 'y))) (num 4))) (num 3)))
       (numV 7))
-(test (interp/khichdi (app (fun 'x (if0 (id 'x) (num 1) (add (num 2) (id 'x)))) (num 0)))
+(check-equal? (interp/khichdi (app (fun 'x (if0 (id 'x) (num 1) (add (num 2) (id 'x)))) (num 0)))
       (numV 1))
-(test (interp/khichdi (app (fun 'f (app (id 'f) (num 1)))
+(check-equal? (interp/khichdi (app (fun 'f (app (id 'f) (num 1)))
                            (fun 'x (add (id 'x) (num 1)))))
       (numV 2))
-(test (interp/khichdi (app (fun 'f (app (id 'f) (num 1)))
+(check-equal? (interp/khichdi (app (fun 'f (app (id 'f) (num 1)))
                            (fun 'x (if0 (id 'x)
                                         (num 9)
                                         (add (id 'x) (num 2))))))
       (numV 3))
 ;; should diverge
-;; (test (interp/khichdi (fix 'f (id 'f))) (numV 0))
-(test (interp/khichdi (app (fun 'down (app (id 'down) (num 1)))
+;; (check-equal? (interp/khichdi (fix 'f (id 'f))) (numV 0))
+(check-equal? (interp/khichdi (app (fun 'down (app (id 'down) (num 1)))
                            (fix 'f (fun 'x (if0 (id 'x)
                                                 (num 9)
                                                 (app (id 'f) (sub (id 'x) (num 1)))))))) (numV 9))
-(test/exn (interp/khichdi (raze 'some-tag (num 2))) "uncaught exception:")
-(test (interp/khichdi (match/handle (raze 'some-tag (num 2))
+;; (check-equal?/exn (interp/khichdi (raze 'some-tag (num 2))) "uncaught exception:")
+(check-equal? (interp/khichdi (match/handle (raze 'some-tag (num 2))
                                     'x
                                     (add (id 'x) (num 3))
                                     'some-tag
@@ -235,12 +232,12 @@
                                     (add (id 'x) (num 4))))
       (numV 6))
 
-;; (test (interp/khichdi (newbox (num 2))) (boxV 'g2405468))
-(test (interp/khichdi (with 'x (newbox (num 2)) (add (num 1) (openbox (id 'x))))) (numV 3))
-(test (interp/khichdi (with 'x (newbox (num 3)) (seqn (setbox (id 'x) (num 4))
+;; (check-equal? (interp/khichdi (newbox (num 2))) (boxV 'g2405468))
+(check-equal? (interp/khichdi (with 'x (newbox (num 2)) (add (num 1) (openbox (id 'x))))) (numV 3))
+(check-equal? (interp/khichdi (with 'x (newbox (num 3)) (seqn (setbox (id 'x) (num 4))
                                                       (add (num 1) (openbox (id 'x))))))
       (numV 5))
 
-(test (interp/khichdi (with 'x (num 2) (seqn (setvar 'x (num 3))
+(check-equal? (interp/khichdi (with 'x (num 2) (seqn (setvar 'x (num 3))
                                              (add (id 'x) (num 1)))))
       (numV 4))

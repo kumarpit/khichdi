@@ -1,7 +1,7 @@
-#lang plai
+#lang racket
 
 (require "prelude.rkt")
-(print-only-errors #t)
+(provide (all-defined-out))
 
 ;; This file defines the parser for the Khichdi language.
 
@@ -33,7 +33,7 @@
 
 ;; TEMPLATES
 
-
+#;
 (define (fn-for-kfs sexp)
   (match sexp
     [`,n #:when (number? n) (... n)]
@@ -134,30 +134,30 @@
 
 
 ;; Examples
-(test (parse/khichdi 2) (num 2))
-(test (parse/khichdi `{f 2}) (app (id 'f) (num 2)))
-(test (parse/khichdi '{+ 1 2}) (add (num 1) (num 2)))
-(test (parse/khichdi '{with {x 2} {+ x 3}}) (app (fun 'x (add (id 'x) (num 3))) (num 2)))
-(test (parse/khichdi '{with {x 3} {with {y 4} {+ x y}}})
+(check-equal? (parse/khichdi 2) (num 2))
+(check-equal? (parse/khichdi `{f 2}) (app (id 'f) (num 2)))
+(check-equal? (parse/khichdi '{+ 1 2}) (add (num 1) (num 2)))
+(check-equal? (parse/khichdi '{with {x 2} {+ x 3}}) (app (fun 'x (add (id 'x) (num 3))) (num 2)))
+(check-equal? (parse/khichdi '{with {x 3} {with {y 4} {+ x y}}})
       (app (fun 'x (app (fun 'y (add (id 'x) (id 'y))) (num 4))) (num 3)))
-(test (parse/khichdi '{with {x 0} {if0 x 1 {+ 2 x}}})
+(check-equal? (parse/khichdi '{with {x 0} {if0 x 1 {+ 2 x}}})
       (app (fun 'x (if0 (id 'x) (num 1) (add (num 2) (id 'x)))) (num 0)))
 
-(test (parse/khichdi '{fix f f}) (fix 'f (id 'f)))
-(test (parse/khichdi '{fixFun f {x} {f 1}}) (fix 'f (fun 'x (app (id 'f) (num 1)))))
-(test (parse/khichdi '{with {down {fix f {fun {x} {if0 x 9 {f {- x 1}}}}}} {down 1}})
+(check-equal? (parse/khichdi '{fix f f}) (fix 'f (id 'f)))
+(check-equal? (parse/khichdi '{fixFun f {x} {f 1}}) (fix 'f (fun 'x (app (id 'f) (num 1)))))
+(check-equal? (parse/khichdi '{with {down {fix f {fun {x} {if0 x 9 {f {- x 1}}}}}} {down 1}})
       (app (fun 'down (app (id 'down) (num 1)))
            (fix 'f
                 (fun 'x
                      (if0 (id 'x)
                           (num 9)
                           (app (id 'f) (sub (id 'x) (num 1))))))))
-(test (parse/khichdi '{rec {x {x 2}} {x 1}}) (app
+(check-equal? (parse/khichdi '{rec {x {x 2}} {x 1}}) (app
                                               (fun 'x (app (id 'x) (num 1)))
                                               (fix 'x (app (id 'x) (num 2)))))
 
-(test (parse/khichdi '{raze some-tag 2}) (raze 'some-tag (num 2)))
-(test (parse/khichdi '{match/handle {raze some-tag 2}
+(check-equal? (parse/khichdi '{raze some-tag 2}) (raze 'some-tag (num 2)))
+(check-equal? (parse/khichdi '{match/handle {raze some-tag 2}
                                     [x {+ x 3}]
                                     [{raze some-tag x} {+ x 4}]})
       (match/handle (raze 'some-tag (num 2))
@@ -167,15 +167,15 @@
                     'x
                     (add (id 'x) (num 4))))
 
-(test (parse/khichdi '{newbox 2}) (newbox (num 2)))
+(check-equal? (parse/khichdi '{newbox 2}) (newbox (num 2)))
 #; 
-(test (parse/khichdi '{with {x {newbox 2}}
+(check-equal? (parse/khichdi '{with {x {newbox 2}}
                             {seqn {setbox x 3}
                                   {+ {openbox x} 1}}})
       (app (fun 'x (app (fun 'g1805382 (add (openbox (id 'x)) (num 1)))
                         (setbox (id 'x) (num 3))))
            (newbox (num 2))))
 #;
-(test (parse/khichdi '{with {x 2} {seqn {setvar x 3}
+(check-equal? (parse/khichdi '{with {x 2} {seqn {setvar x 3}
                                         {+ x 1}}})
       (app (fun 'x (app (fun 'g2627105 (add (id 'x) (num 1))) (setvar 'x (num 3)))) (num 2)))
