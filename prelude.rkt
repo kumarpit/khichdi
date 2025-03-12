@@ -1,4 +1,10 @@
-#lang plai
+#lang racket
+
+(require plai/datatype)
+(require rackunit)
+(provide (all-defined-out)
+         (all-from-out plai/datatype)
+         (all-from-out rackunit))
 
 (define (... . args) (cons '... args)) ;; enables us to use ... in templates
 
